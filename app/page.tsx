@@ -70,11 +70,179 @@ const sections = [
   { id: "contact", label: "联系" },
 ];
 
+const profileJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  name: "codeJokerYang Developer Portfolio",
+  description: "Java 全栈、AI Agent 与多端应用公开作品集。",
+  mainEntity: {
+    "@type": "Person",
+    alternateName: "codeJokerYang",
+    url: "https://github.com/codeJokerYang",
+    sameAs: ["https://github.com/codeJokerYang"],
+    knowsAbout: ["Java", "Spring Boot", "AI Agent", "Vue 3", "HarmonyOS"],
+  },
+};
+
 export default function Home() {
   const [activeSection, setActiveSection] = useState("top");
   const [openProject, setOpenProject] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [particlesEnabled, setParticlesEnabled] = useState(true);
   const progressRef = useRef<HTMLDivElement>(null);
+  const particleCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = particleCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let animationFrame = 0;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const pointer = { x: width * 0.72, y: height * 0.34, active: false };
+
+    type Particle = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      radius: number;
+      color: string;
+      pulse: number;
+    };
+
+    const palette = ["108, 86, 255", "200, 255, 61", "72, 176, 255"];
+    let particles: Particle[] = [];
+
+    const createParticle = (x = Math.random() * width, y = Math.random() * height): Particle => ({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 0.34,
+      vy: (Math.random() - 0.5) * 0.34,
+      radius: 0.8 + Math.random() * 1.7,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      pulse: Math.random() * Math.PI * 2,
+    });
+
+    const resize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvas.width = Math.round(width * pixelRatio);
+      canvas.height = Math.round(height * pixelRatio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      const particleCount = Math.min(width < 700 ? 42 : 88, Math.max(28, Math.floor((width * height) / 15000)));
+      particles = Array.from({ length: particleCount }, () => createParticle());
+    };
+
+    const updatePointerPosition = (event: PointerEvent) => {
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      pointer.active = true;
+    };
+
+    const releasePointer = () => { pointer.active = false; };
+
+    const createBurst = (event: PointerEvent) => {
+      if (!particlesEnabled || reduceMotion) return;
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      for (let index = 0; index < Math.min(10, particles.length); index += 1) {
+        const particle = particles[index];
+        const angle = (Math.PI * 2 * index) / 10 + Math.random() * 0.35;
+        const speed = 0.7 + Math.random() * 1.5;
+        particle.x = pointer.x;
+        particle.y = pointer.y;
+        particle.vx = Math.cos(angle) * speed;
+        particle.vy = Math.sin(angle) * speed;
+      }
+    };
+
+    const draw = () => {
+      context.clearRect(0, 0, width, height);
+
+      particles.forEach((particle) => {
+        if (!reduceMotion) {
+          particle.x += particle.vx;
+          particle.y += particle.vy;
+          particle.pulse += 0.018;
+
+          if (pointer.active) {
+            const dx = particle.x - pointer.x;
+            const dy = particle.y - pointer.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0 && distance < 155) {
+              const force = (1 - distance / 155) * 0.028;
+              particle.vx += (dx / distance) * force;
+              particle.vy += (dy / distance) * force;
+            }
+          }
+
+          particle.vx *= 0.992;
+          particle.vy *= 0.992;
+          if (particle.x < -20) particle.x = width + 20;
+          if (particle.x > width + 20) particle.x = -20;
+          if (particle.y < -20) particle.y = height + 20;
+          if (particle.y > height + 20) particle.y = -20;
+        }
+
+        const pulse = 0.76 + Math.sin(particle.pulse) * 0.24;
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.radius * pulse, 0, Math.PI * 2);
+        context.fillStyle = `rgba(${particle.color}, ${0.36 + pulse * 0.22})`;
+        context.fill();
+      });
+
+      for (let first = 0; first < particles.length; first += 1) {
+        for (let second = first + 1; second < particles.length; second += 1) {
+          const a = particles[first];
+          const b = particles[second];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          if (distance < 104) {
+            context.beginPath();
+            context.moveTo(a.x, a.y);
+            context.lineTo(b.x, b.y);
+            context.strokeStyle = `rgba(101, 85, 255, ${(1 - distance / 104) * 0.14})`;
+            context.lineWidth = 0.65;
+            context.stroke();
+          }
+        }
+      }
+
+      if (pointer.active && !reduceMotion) {
+        const glow = context.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, 115);
+        glow.addColorStop(0, "rgba(200, 255, 61, .10)");
+        glow.addColorStop(1, "rgba(200, 255, 61, 0)");
+        context.fillStyle = glow;
+        context.fillRect(pointer.x - 115, pointer.y - 115, 230, 230);
+      }
+
+      if (!reduceMotion && particlesEnabled) animationFrame = window.requestAnimationFrame(draw);
+    };
+
+    resize();
+    if (particlesEnabled) draw();
+    window.addEventListener("resize", resize, { passive: true });
+    window.addEventListener("pointermove", updatePointerPosition, { passive: true });
+    window.addEventListener("pointerleave", releasePointer);
+    window.addEventListener("pointerdown", createBurst, { passive: true });
+    document.addEventListener("visibilitychange", releasePointer);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", updatePointerPosition);
+      window.removeEventListener("pointerleave", releasePointer);
+      window.removeEventListener("pointerdown", createBurst);
+      document.removeEventListener("visibilitychange", releasePointer);
+      context.clearRect(0, 0, width, height);
+    };
+  }, [particlesEnabled]);
 
   useEffect(() => {
     const revealObserver = new IntersectionObserver(
@@ -136,6 +304,8 @@ export default function Home() {
 
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd) }} />
+      <canvas className={`particle-field ${particlesEnabled ? "is-active" : ""}`} ref={particleCanvasRef} aria-hidden="true" />
       <div className="scroll-progress" ref={progressRef} aria-hidden="true" />
 
       <header className="site-header shell">
@@ -147,7 +317,7 @@ export default function Home() {
             </a>
           ))}
         </nav>
-        <a className="header-contact" href="https://github.com/codeJokerYang" target="_blank" rel="noreferrer">GitHub <span>↗</span></a>
+        <a className="header-contact" href="https://github.com/codeJokerYang" target="_blank" rel="noopener noreferrer">GitHub <span>↗</span></a>
         <button className="menu-button" type="button" aria-label="打开菜单" aria-expanded={menuOpen} onClick={() => setMenuOpen((value) => !value)}>
           <span /><span />
         </button>
@@ -175,11 +345,20 @@ export default function Home() {
         <div className="hero-glow" aria-hidden="true" />
         <div className="hero-copy" data-reveal>
           <div className="eyebrow"><span className="status-dot" /> PUBLIC DEV PROFILE · 2026</div>
+          <button
+            className={`particle-control ${particlesEnabled ? "active" : ""}`}
+            type="button"
+            aria-pressed={particlesEnabled}
+            onClick={() => setParticlesEnabled((value) => !value)}
+          >
+            <i aria-hidden="true"><span /><span /><span /></i>
+            PARTICLE FIELD · {particlesEnabled ? "ON" : "OFF"}
+          </button>
           <h1>让后端、Agent<br />与<span>交互体验</span>协同。</h1>
           <p className="hero-intro">我是 codeJokerYang，关注 Java 全栈、AI Agent 与多端应用。喜欢把系统设计、可靠代码和清晰界面组合成真正可以运行的产品。</p>
           <div className="hero-actions">
             <a className="button button-primary magnetic" href="#work"><span>浏览作品</span><b>↘</b></a>
-            <a className="button button-ghost magnetic" href="https://github.com/codeJokerYang" target="_blank" rel="noreferrer"><span>访问 GitHub</span><b>↗</b></a>
+            <a className="button button-ghost magnetic" href="https://github.com/codeJokerYang" target="_blank" rel="noopener noreferrer"><span>访问 GitHub</span><b>↗</b></a>
           </div>
           <div className="quick-facts">
             <div><strong>03</strong><span>PUBLIC REPOS</span></div>
@@ -250,7 +429,7 @@ export default function Home() {
                 <div className="project-detail" aria-hidden={!isOpen}>
                   <div><small>DESIGN NOTE</small><p>{project.detail}</p></div>
                   <div><small>OUTCOME</small><p>{project.result}</p></div>
-                  <a href={project.repo} target="_blank" rel="noreferrer">查看 GitHub <span>↗</span></a>
+                  <a href={project.repo} target="_blank" rel="noopener noreferrer">查看 GitHub <span>↗</span></a>
                 </div>
               </article>
             );
@@ -292,7 +471,7 @@ export default function Home() {
           <h2>继续查看代码，<br /><span>从公开项目认识我。</span></h2>
           <div className="contact-copy">
             <p>这里仅展示可公开的技术内容。更多代码、更新记录和项目文档，可以前往 GitHub 查看。</p>
-            <a className="github-link" href="https://github.com/codeJokerYang" target="_blank" rel="noreferrer">
+            <a className="github-link" href="https://github.com/codeJokerYang" target="_blank" rel="noopener noreferrer">
               <span>github.com/codeJokerYang</span><b>↗</b>
             </a>
           </div>
@@ -302,7 +481,7 @@ export default function Home() {
       <footer className="shell">
         <a className="brand" href="#top">CJY<span>.</span></a>
         <p>© 2026 codeJokerYang · Public developer portfolio</p>
-        <div><a href="#work">Projects ↗</a><a href="https://github.com/codeJokerYang" target="_blank" rel="noreferrer">GitHub ↗</a></div>
+        <div><a href="#work">Projects ↗</a><a href="https://github.com/codeJokerYang" target="_blank" rel="noopener noreferrer">GitHub ↗</a></div>
       </footer>
     </main>
   );
